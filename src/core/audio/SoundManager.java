@@ -9,7 +9,6 @@ public class SoundManager {
     private static final Map<String, Clip> loopingSirens = new HashMap<>();
     private static long lastHornTime = 0;
 
-
     // Quản lý âm lượng toàn cầu (0.0 đến 1.0)
     public static float volume = 0.7f;
 
@@ -66,17 +65,19 @@ public class SoundManager {
         } catch (Exception e) {}
     }
 
-    public static void playHornOnNearCollision() {
+    // --- LOGIC CÒI TỰ NHIÊN MỚI ---
+    public static synchronized void playHornOnNearCollision() {
         long now = System.currentTimeMillis();
-        if (now - lastHornTime < 1500) return;
 
-        if (Math.random() < 0.50) {
+        // 1. CHỐNG SPAM: Tuyệt đối không cho tiếng còi nào kêu cách nhau dưới 2.5 giây
+        if (now - lastHornTime < 2500) return;
+
+        // 2. TẠO SỰ TỰ NHIÊN: Khi kẹt đường, xe sẽ bóp còi ngẫu nhiên thay vì kêu liên thanh
+        if (Math.random() < 0.05) {
             lastHornTime = now;
             playOneShot("src/resources/sounds/horn.wav");
         }
     }
-
-    // Tiếng xi nhan (Được bảo vệ bằng khóa đồng bộ hóa)
 
     private static void playOneShot(String filePath) {
         new Thread(() -> {
