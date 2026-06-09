@@ -1,5 +1,3 @@
-package core;
-
 import core.controller.TrafficController;
 import core.environment.Intersection;
 import core.environment.TrafficLight;
