@@ -44,7 +44,7 @@ public class Main extends JPanel implements ActionListener {
 
         // Load ảnh nền bản đồ
         try {
-            mapImage = ImageIO.read(new File("C:/Users/zeddt/Downloads/Trafficsimmm/Traffic/assets/city_map.png"));
+            mapImage = ImageIO.read(new File("assets/city_map.png"));
         } catch (IOException e) {
             System.err.println("VẪN KHÔNG TÌM THẤY ẢNH!");
         }
