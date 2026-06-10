@@ -11,15 +11,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Main extends JPanel implements ActionListener {
-    private static final int WIDTH = 1600;
-    private static final int HEIGHT = 900;
+    // Kích thước gốc làm chuẩn thiết kế
+    private static final int BASE_WIDTH = 1600;
+    private static final int BASE_HEIGHT = 900;
+
     private List<Intersection> intersections;
     private List<Vehicle> vehicles;
     private TrafficController controller;
@@ -28,29 +27,20 @@ public class Main extends JPanel implements ActionListener {
     private boolean manualMode = false;
     private boolean highTraffic = false;
 
-    // Tọa độ click của các nút bấm
     private Rectangle modeButtonRect;
     private Rectangle trafficButtonRect;
-
-    private Image mapImage;
+    // Đã xóa hoàn toàn biến mapImage và khối lệnh ImageIO.read load ảnh
     private JSlider volumeSlider;
 
     public Main() {
-        setPreferredSize(new Dimension(WIDTH, HEIGHT));
-        setBackground(new Color(163, 206, 113));
-        setLayout(null); // Sử dụng vị trí tuyệt đối để dàn hàng ngang
-
-        // Load ảnh nền bản đồ
-        try {
-            mapImage = ImageIO.read(new File("assets/city_map.png"));
-        } catch (IOException e) {
-            System.err.println("VẪN KHÔNG TÌM THẤY ẢNH!");
-        }
+        // Mặc định ban đầu, vẫn ưu tiên kích thước chuẩn
+        setPreferredSize(new Dimension(BASE_WIDTH, BASE_HEIGHT));
+        setBackground(Color.BLACK); // Đặt nền đen để tạo khoảng viền (Letterbox)
+        setLayout(null);
 
         vehicles = new ArrayList<>();
         intersections = new ArrayList<>();
 
-        // Tạo ngã tư
         TrafficLight light3 = new TrafficLight(false);
         TrafficLight light4 = new TrafficLight(false);
         TrafficLight light5 = new TrafficLight(true);
@@ -59,18 +49,13 @@ public class Main extends JPanel implements ActionListener {
         intersections.add(new Intersection(1200, 200, "5way", light5));
 
         controller = new TrafficController(intersections, vehicles);
-        renderer = new Renderer(WIDTH, HEIGHT);
+        renderer = new Renderer(BASE_WIDTH, BASE_HEIGHT);
 
-        // --- CẬP NHẬT: DÀN HÀNG NGANG CÁC NÚT ĐIỀU KHIỂN (CÙNG Y = 20, CAO 45) ---
-        // Nút Mode ở vị trí đầu tiên
+        // Khởi tạo tọa độ nút bấm theo kích thước gốc chuẩn
         modeButtonRect = new Rectangle(20, 20, 160, 45);
-
-        // Nút Traffic dịch sang bên phải nút Mode (X = 200)
         trafficButtonRect = new Rectangle(200, 20, 160, 45);
 
-        // Thanh Slider Volume dịch sang bên phải nút Traffic (X = 490, nằm trong khung lót)
         volumeSlider = new JSlider(0, 100, 70);
-        volumeSlider.setBounds(490, 27, 120, 30);
         volumeSlider.setOpaque(false);
         volumeSlider.setFocusable(false);
         volumeSlider.addChangeListener(e -> {
@@ -79,12 +64,19 @@ public class Main extends JPanel implements ActionListener {
         });
         add(volumeSlider);
 
-        // Xử lý sự kiện click chuột
+        // Xử lý sự kiện click chuột dịch ngược tọa độ theo tỷ lệ màn hình
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                int mx = e.getX();
-                int my = e.getY();
+                double scaleX = (double) getWidth() / BASE_WIDTH;
+                double scaleY = (double) getHeight() / BASE_HEIGHT;
+                double scale = Math.min(scaleX, scaleY);
+
+                int offsetX = (getWidth() - (int) (BASE_WIDTH * scale)) / 2;
+                int offsetY = (getHeight() - (int) (BASE_HEIGHT * scale)) / 2;
+
+                int mx = (int) ((e.getX() - offsetX) / scale);
+                int my = (int) ((e.getY() - offsetY) / scale);
 
                 if (modeButtonRect.contains(mx, my)) {
                     manualMode = !manualMode;
@@ -117,11 +109,30 @@ public class Main extends JPanel implements ActionListener {
     }
 
     @Override
+    public void doLayout() {
+        super.doLayout();
+        if (volumeSlider != null) {
+            double scaleX = (double) getWidth() / BASE_WIDTH;
+            double scaleY = (double) getHeight() / BASE_HEIGHT;
+            double scale = Math.min(scaleX, scaleY);
+
+            int offsetX = (getWidth() - (int) (BASE_WIDTH * scale)) / 2;
+            int offsetY = (getHeight() - (int) (BASE_HEIGHT * scale)) / 2;
+
+            volumeSlider.setBounds(
+                    (int)(offsetX + 490 * scale),
+                    (int)(offsetY + 27 * scale),
+                    (int)(120 * scale),
+                    (int)(30 * scale)
+            );
+        }
+    }
+
+    @Override
     public void actionPerformed(ActionEvent e) {
         for (Intersection inter : intersections) {
             inter.light.update();
         }
-
         double spawnRate = highTraffic ? 0.06 : 0.03;
         if (Math.random() < spawnRate) {
             controller.spawnVehicle();
@@ -134,7 +145,6 @@ public class Main extends JPanel implements ActionListener {
             if (v.getName().equals("Ambu")) ambulancePresent = true;
             if (v.getName().equals("Fire")) firetruckPresent = true;
         }
-
         SoundManager.updateEmergencySiren("Ambu", "src/resources/sounds/ambulance.wav", ambulancePresent);
         SoundManager.updateEmergencySiren("Fire", "src/resources/sounds/firetruck.wav", firetruckPresent);
 
@@ -146,31 +156,46 @@ public class Main extends JPanel implements ActionListener {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
 
-        // Bật chế độ khử răng cưa cho đồ họa mượt mà
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        // BỘ LỌC ĐỒ HỌA PIXEL ART: Tắt toàn bộ tính năng làm mờ mịn
+        // 1. Tắt làm mờ/nhòe khi phóng to ảnh xe cộ (Ép phóng to theo kiểu cục vuông)
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        if (mapImage != null) {
-            g2d.drawImage(mapImage, 0, 0, getWidth(), getHeight(), null);
-        }
+// 2. Tắt khử răng cưa cho các khối hình học (mặt đường, vạch kẻ sẽ vuông thành sắc cạnh)
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
 
+// 3. Tắt khử răng cưa cho chữ số (số đếm ngược trên đèn sẽ ra đúng chất pixel)
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+
+        double scaleX = (double) getWidth() / BASE_WIDTH;
+        double scaleY = (double) getHeight() / BASE_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+
+        int offsetX = (getWidth() - (int) (BASE_WIDTH * scale)) / 2;
+        int offsetY = (getHeight() - (int) (BASE_HEIGHT * scale)) / 2;
+
+        g2d.translate(offsetX, offsetY);
+        g2d.scale(scale, scale);
+
+        // VẼ MẶT ĐƯỜNG VÀ CỎ BẰNG CODE (Gọi từ Renderer)
+        renderer.drawBackgroundAndRoads(g2d, intersections);
+
+        // VẼ ĐÈN GIAO THÔNG
         renderer.drawTrafficLights(g2d, intersections);
+
+        // VẼ XE
         for (Vehicle v : vehicles) {
             v.draw(g2d);
         }
 
-        // --- CẬP NHẬT: VẼ KHUNG NỀN VOLUME DÀN NGANG CÙNG HÀNG NÚT BẤM ---
+        // Vẽ UI
         if (volumeSlider != null) {
-            // Hộp đen mờ lót nền cao cấp (X bắt đầu từ 380, rộng 240 để bọc cả chữ và slider)
             g2d.setColor(new Color(0, 0, 0, 160));
             g2d.fillRoundRect(380, 20, 240, 45, 12, 12);
-
-            // Chữ hiển thị phần trăm màu trắng nằm gọn bên trái thanh kéo
             g2d.setColor(Color.WHITE);
             g2d.setFont(new Font("Segoe UI", Font.BOLD, 13));
             g2d.drawString("Vol: " + volumeSlider.getValue() + "%", 395, 47);
         }
 
-        // --- VẼ 2 NÚT CHỨC NĂNG FLAT DESIGN THEO HÀNG NGANG ---
         drawStyledButton(g2d, modeButtonRect, "Mode: " + (manualMode ? "MANUAL" : "AUTO"),
                 manualMode ? new Color(231, 76, 60) : new Color(46, 204, 113));
 
@@ -179,24 +204,15 @@ public class Main extends JPanel implements ActionListener {
     }
 
     private void drawStyledButton(Graphics2D g2d, Rectangle rect, String text, Color statusColor) {
-        // Hiệu ứng bóng đổ
         g2d.setColor(new Color(0, 0, 0, 50));
         g2d.fillRoundRect(rect.x + 3, rect.y + 3, rect.width, rect.height, 12, 12);
-
-        // Thân nút trắng
         g2d.setColor(Color.WHITE);
         g2d.fillRoundRect(rect.x, rect.y, rect.width, rect.height, 12, 12);
-
-        // Viền nút
         g2d.setColor(new Color(200, 200, 200));
         g2d.setStroke(new BasicStroke(1.5f));
         g2d.drawRoundRect(rect.x, rect.y, rect.width, rect.height, 12, 12);
-
-        // Chấm tròn LED báo trạng thái
         g2d.setColor(statusColor);
         g2d.fillOval(rect.x + 15, rect.y + 17, 12, 12);
-
-        // Chữ text hiển thị
         g2d.setColor(new Color(44, 62, 80));
         g2d.setFont(new Font("Segoe UI", Font.BOLD, 14));
         g2d.drawString(text, rect.x + 35, rect.y + 28);
@@ -206,9 +222,17 @@ public class Main extends JPanel implements ActionListener {
         JFrame frame = new JFrame("Smart City Traffic Simulation");
         Main panel = new Main();
         frame.add(panel);
-        frame.pack();
+
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        if (screenSize.width < BASE_WIDTH || screenSize.height < BASE_HEIGHT) {
+            frame.setSize(screenSize.width - 60, screenSize.height - 100);
+        } else {
+            frame.pack();
+        }
+
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setResizable(false);
+        frame.setLocationRelativeTo(null);
+        frame.setResizable(true);
         frame.setVisible(true);
     }
 }

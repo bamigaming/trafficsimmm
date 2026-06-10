@@ -12,7 +12,7 @@ import java.lang.Math;
 public class TrafficController {
     private List<Intersection> intersections;
     private List<Vehicle> vehicles;
-    private int width = 1600, height = 900;
+    private final int width = 1600, height = 900; // Khóa chặt kích thước logic cố định
     private int roadWidth = 240;
     private int roadStartY = 220;
     private int maxCapacity = 40;
@@ -38,7 +38,6 @@ public class TrafficController {
     public void spawnVehicle() {
         if (vehicles.size() >= maxCapacity) return;
         Random rand = new Random();
-        // 50% ngang, 50% dọc
         if (rand.nextBoolean()) {
             spawnHorizontalVehicle();
         } else {
@@ -104,7 +103,6 @@ public class TrafficController {
         if (validIntersections.isEmpty()) return;
         Intersection inter = validIntersections.get(new Random().nextInt(validIntersections.size()));
         boolean isNorth = new Random().nextBoolean();
-        // SOUTH không được phép ở ngã 3
         if (!isNorth && inter.type.equals("3way")) return;
 
         Direction dir = isNorth ? Direction.NORTH : Direction.SOUTH;
@@ -145,14 +143,11 @@ public class TrafficController {
         Vehicle newV = createVehicle(vehicleClass, spawnX, spawnY, dir);
         if (newV != null) {
             newV.setDriverStrategy(getStrategyForVehicle(newV));
-
-            // Xử lý xe hướng NORTH tại ngã 3: không cho đi thẳng
             if (dir == Direction.NORTH && inter.type.equals("3way")) {
                 Random rand = new Random();
                 String forcedTurn = rand.nextBoolean() ? "LEFT" : "RIGHT";
                 newV.setTurnIntent(forcedTurn);
             }
-
             vehicles.add(newV);
         }
     }
@@ -174,7 +169,6 @@ public class TrafficController {
         return new NormalDriver();
     }
 
-    // ======================== HELPER LANE VERTICAL ========================
     private int getSouthSlowX(Intersection inter) { return inter.x + 4; }
     private int getSouthFastX(Intersection inter) { return inter.x + 44; }
     private int getSouthEmgX(Intersection inter)  { return inter.x + 84; }
@@ -183,31 +177,27 @@ public class TrafficController {
     private int getNorthEmgX(Intersection inter)  { return inter.x + 124; }
 
     private int getEastLaneForTurn(Intersection inter, Vehicle v) {
-        boolean isEmergency = v.getName().equals("Ambu") || v.getName().equals("Fire");
-        if (isEmergency) return EAST_LANE_EMG;   // 344
-        if (v.getName().equals("Bike")) return EAST_LANE_SLOW; // 424
-        return EAST_LANE_FAST;                   // 384
+        if (v.getName().equals("Ambu") || v.getName().equals("Fire")) return EAST_LANE_EMG;
+        if (v.getName().equals("Bike")) return EAST_LANE_SLOW;
+        return EAST_LANE_FAST;
     }
 
     private int getWestLaneForTurn(Intersection inter, Vehicle v) {
-        boolean isEmergency = v.getName().equals("Ambu") || v.getName().equals("Fire");
-        if (isEmergency) return WEST_LANE_EMG;   // 304
-        if (v.getName().equals("Bike")) return WEST_LANE_SLOW; // 224
-        return WEST_LANE_FAST;                   // 264
+        if (v.getName().equals("Ambu") || v.getName().equals("Fire")) return WEST_LANE_EMG;
+        if (v.getName().equals("Bike")) return WEST_LANE_SLOW;
+        return WEST_LANE_FAST;
     }
 
-    // ======================== CHECK OCCUPIED ========================
     private boolean isSpotOccupied(Vehicle v, double tx, double ty) {
         Rectangle testRect = new Rectangle((int)tx, (int)ty, v.getBodyWidth(), v.getBodyHeight());
         for (Vehicle o : vehicles) {
             if (o != v) {
                 Rectangle oRect = new Rectangle((int)o.getX(), (int)o.getY(), o.getBodyWidth(), o.getBodyHeight());
                 if (testRect.intersects(oRect)) {
-                    // Phá deadlock kẹt xe trong ngã tư
                     if (o.isWaitingToTurn() || o.getSpeed() == 0) {
                         boolean vIsEmg = v.getName().equals("Ambu") || v.getName().equals("Fire");
                         boolean oIsEmg = o.getName().equals("Ambu") || o.getName().equals("Fire");
-                        if (vIsEmg && !oIsEmg) continue; // Xe ưu tiên được phép lách qua để gỡ kẹt
+                        if (vIsEmg && !oIsEmg) continue;
                         if (vIsEmg == oIsEmg && System.identityHashCode(v) > System.identityHashCode(o)) continue;
                     }
                     return true;
@@ -217,10 +207,8 @@ public class TrafficController {
         return false;
     }
 
-    // ======================== EXECUTE TURN ========================
     public void executeTurn(Vehicle v) {
         v.setWaitingToTurn(false);
-        // Xử lý ngã 5
         for (Intersection inter : intersections) {
             if (inter.type.equals("5way")) {
                 int cx = inter.x + roadWidth / 2;
@@ -259,7 +247,6 @@ public class TrafficController {
             }
         }
 
-        // Xử lý rẽ tại các giao lộ thường
         for (Intersection inter : intersections) {
             if (v.hasTurned()) break;
 
@@ -271,7 +258,6 @@ public class TrafficController {
 
             if (v.getTurnIntent().equals("STRAIGHT")) continue;
 
-            // EAST / WEST
             if (v.getDirection() == Direction.EAST || v.getDirection() == Direction.WEST) {
                 if ((inter.type.equals("3way") && v.getTurnIntent().equals("LEFT") && v.getDirection() == Direction.EAST) ||
                         (inter.type.equals("3way") && v.getTurnIntent().equals("RIGHT") && v.getDirection() == Direction.WEST)) {
@@ -284,27 +270,22 @@ public class TrafficController {
                 boolean isEmergency = v.getName().equals("Ambu") || v.getName().equals("Fire");
                 if (v.getDirection() == Direction.EAST) {
                     if (v.getTurnIntent().equals("RIGHT")) {
-                        if (isEmergency) targetX = southLanes[1];
-                        else targetX = (v.getName().equals("Bike") ? southLanes[0] : southLanes[1]);
+                        targetX = isEmergency ? southLanes[1] : (v.getName().equals("Bike") ? southLanes[0] : southLanes[1]);
                         targetDir = Direction.SOUTH;
                     } else if (v.getTurnIntent().equals("LEFT")) {
-                        if (isEmergency) targetX = northLanes[1];
-                        else targetX = (v.getName().equals("Bike") ? northLanes[0] : northLanes[1]);
+                        targetX = isEmergency ? northLanes[1] : (v.getName().equals("Bike") ? northLanes[0] : northLanes[1]);
                         targetDir = Direction.NORTH;
                     }
                 } else if (v.getDirection() == Direction.WEST) {
                     if (v.getTurnIntent().equals("RIGHT")) {
-                        if (isEmergency) targetX = northLanes[1];
-                        else targetX = (v.getName().equals("Bike") ? northLanes[0] : northLanes[1]);
+                        targetX = isEmergency ? northLanes[1] : (v.getName().equals("Bike") ? northLanes[0] : northLanes[1]);
                         targetDir = Direction.NORTH;
                     } else if (v.getTurnIntent().equals("LEFT")) {
-                        if (isEmergency) targetX = southLanes[1];
-                        else targetX = (v.getName().equals("Bike") ? southLanes[0] : southLanes[1]);
+                        targetX = isEmergency ? southLanes[1] : (v.getName().equals("Bike") ? southLanes[0] : southLanes[1]);
                         targetDir = Direction.SOUTH;
                     }
                 }
                 if (targetX != null && targetDir != null) {
-                    // SỬA LỖI BUG RẼ: Dùng getOriginalSpeed() để quét chuẩn hơn
                     if (Math.abs(v.getX() - targetX) <= v.getOriginalSpeed()) {
                         if (!isSpotOccupied(v, targetX, v.getY())) {
                             v.setX(targetX);
@@ -317,7 +298,6 @@ public class TrafficController {
                     }
                 }
             }
-            // SOUTH
             else if (v.getDirection() == Direction.SOUTH) {
                 if (v.getX() < inter.x || v.getX() > inter.x + roadWidth) continue;
 
@@ -331,7 +311,6 @@ public class TrafficController {
                     targetDir = Direction.EAST;
                 }
                 if (targetY != -1 && targetDir != null) {
-                    // SỬA LỖI BUG RẼ: Dùng getOriginalSpeed()
                     if (Math.abs(v.getY() - targetY) <= v.getOriginalSpeed()) {
                         if (!isSpotOccupied(v, v.getX(), targetY)) {
                             v.setY(targetY);
@@ -344,7 +323,6 @@ public class TrafficController {
                     }
                 }
             }
-            // NORTH
             else if (v.getDirection() == Direction.NORTH) {
                 if (v.getX() < inter.x || v.getX() > inter.x + roadWidth) continue;
 
@@ -358,7 +336,6 @@ public class TrafficController {
                     targetDir = Direction.WEST;
                 }
                 if (targetY != -1 && targetDir != null) {
-                    // SỬA LỖI BUG RẼ: Dùng getOriginalSpeed()
                     if (Math.abs(v.getY() - targetY) <= v.getOriginalSpeed()) {
                         if (!isSpotOccupied(v, v.getX(), targetY)) {
                             v.setY(targetY);
@@ -374,12 +351,10 @@ public class TrafficController {
         }
     }
 
-    // ======================== CHECK SAFE DISTANCE ========================
     public boolean checkSafeDistance(Vehicle currentV, int threshold) {
         int cw = currentV.getBodyWidth(), ch = currentV.getBodyHeight();
         int offset = 6;
 
-        // Khung kiểm tra đè xe trực tiếp
         Rectangle myActualRect = new Rectangle((int)currentV.getX() + 2, (int)currentV.getY() + 2, cw - 4, ch - 4);
 
         Rectangle predRect;
@@ -402,7 +377,6 @@ public class TrafficController {
             int ow = other.getBodyWidth(), oh = other.getBodyHeight();
             Rectangle otherRect = new Rectangle((int)other.getX() + shrink, (int)other.getY() + shrink, ow - 2*shrink, oh - 2*shrink);
 
-            // Xử lý tách các xe lỡ đè lên nhau
             if (myActualRect.intersects(otherRect)) {
                 if (System.identityHashCode(currentV) < System.identityHashCode(other)) return false;
             }
@@ -422,7 +396,6 @@ public class TrafficController {
                 }
                 double dot = dx * vx + dy * vy;
 
-                // Mở rộng góc bắt chạm để bao gồm cả xe bị dừng sát sạt
                 if (dot > -0.1) {
                     if (currentV.getDirection() != other.getDirection()) {
                         if (System.identityHashCode(currentV) < System.identityHashCode(other)) return false;
@@ -435,7 +408,6 @@ public class TrafficController {
         return true;
     }
 
-    // ======================== LANE CHANGE HELPERS ========================
     private boolean isLaneSafe(Vehicle currentV, double targetY) {
         int cw = currentV.getBodyWidth(), ch = currentV.getBodyHeight();
         Rectangle blindSpot = new Rectangle((int)currentV.getX() - 100, (int)targetY, cw + 200, ch);
@@ -459,7 +431,6 @@ public class TrafficController {
         return true;
     }
 
-    // ======================== OVERTAKE ========================
     public void tryOvertake(Vehicle currentV) {
         if (!canChangeLane(currentV)) return;
         Direction d = currentV.getDirection();
@@ -554,7 +525,6 @@ public class TrafficController {
         Direction d = currentV.getDirection();
         if (d == Direction.NORTHEAST || d == Direction.SOUTHWEST) return;
 
-        // EAST/WEST
         if (d == Direction.EAST || d == Direction.WEST) {
             boolean isLane2or3 = false;
             int currentLane = -1;
@@ -596,7 +566,6 @@ public class TrafficController {
                 }
             }
         }
-        // NORTH/SOUTH
         else if (d == Direction.SOUTH || d == Direction.NORTH) {
             Intersection inter = getApproachingIntersection(currentV);
             if (inter == null) return;
@@ -643,7 +612,7 @@ public class TrafficController {
         }
     }
 
-    // ======================== INTERSECTION LOGIC ========================
+    // ======================== SỬA LỖI CHÍ MẠNG TẠI ĐÂY ========================
     private Intersection getApproachingIntersection(Vehicle v) {
         Direction d = v.getDirection();
         if (d == Direction.NORTHEAST) return null;
@@ -658,14 +627,26 @@ public class TrafficController {
         }
 
         int stopDist = 65;
-        int westStopDist = 95; // Lùi thêm 30px cho trục ngang bên phải
+        int westStopDist = 95;
         int overshoot = 30;
 
         for (Intersection inter : intersections) {
+            // ĐƯỜNG NGANG (EAST/WEST): Bản chất kiểm tra X đã gắn liền với từng ngã tư cụ thể
             if (d == Direction.EAST && frontX >= inter.x - stopDist && frontX <= inter.x + overshoot) return inter;
             if (d == Direction.WEST && frontX <= inter.x + roadWidth + westStopDist && frontX >= inter.x + roadWidth - overshoot) return inter;
-            if (d == Direction.SOUTH && frontY >= roadStartY - stopDist && frontY <= roadStartY + overshoot) return inter;
-            if (d == Direction.NORTH && frontY <= roadStartY + roadWidth + stopDist && frontY >= roadStartY + roadWidth - overshoot) return inter;
+
+            // ĐƯỜNG DỌC (SOUTH/NORTH): PHẢI THÊM ĐIỀU KIỆN RÀ SOÁT TỌA ĐỘ TRỤC X CỦA XE
+            // Đảm bảo xe đang đi đúng làn dọc của ngã tư đó chứ không quét nhầm sang ngã tư khác!
+            if (d == Direction.SOUTH) {
+                if (v.getX() >= inter.x && v.getX() <= inter.x + roadWidth) {
+                    if (frontY >= roadStartY - stopDist && frontY <= roadStartY + overshoot) return inter;
+                }
+            }
+            if (d == Direction.NORTH) {
+                if (v.getX() >= inter.x && v.getX() <= inter.x + roadWidth) {
+                    if (frontY <= roadStartY + roadWidth + stopDist && frontY >= roadStartY + roadWidth - overshoot) return inter;
+                }
+            }
 
             if (d == Direction.SOUTHWEST && inter.type.equals("5way")) {
                 int cx = inter.x + roadWidth / 2;
@@ -680,7 +661,7 @@ public class TrafficController {
 
     private void snapToStopLine(Vehicle v, Intersection inter) {
         int stopDist = 65;
-        int westStopDist = 95; // Lùi thêm 30px cho trục ngang bên phải
+        int westStopDist = 95;
         Direction d = v.getDirection();
 
         if (d == Direction.EAST) {
@@ -731,14 +712,13 @@ public class TrafficController {
     // ======================== UPDATE ALL ========================
     public void updateAll() {
         ticks++;
-        for (Vehicle v : vehicles) {
+        for (Vehicle v : new java.util.ArrayList<>(vehicles)) {
             executeTurn(v);
             boolean lightAllows = canVehicleGo(v);
 
             if (!lightAllows) {
                 Intersection inter = getApproachingIntersection(v);
                 if (inter != null) {
-                    // CHẶN BUG ĐÈ XE: Chỉ ép tọa độ lùi về vạch nếu phía trước không có xe nào
                     if (checkSafeDistance(v, 60)) {
                         snapToStopLine(v, inter);
                     }
