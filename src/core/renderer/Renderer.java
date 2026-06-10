@@ -186,23 +186,28 @@ public class Renderer {
     }
 
     public void drawBackgroundAndRoads(Graphics2D g2d, List<Intersection> intersections) {
-        // Tự động gieo hạt trồng cây 1 lần duy nhất ở Frame đầu tiên
         if (!treesGenerated) {
             generateTrees(intersections);
             treesGenerated = true;
         }
 
+        // Tọa độ TRÀN VIỀN khổng lồ để lấp đầy dải đen/xanh ở màn hình to
+        int EX = 1500;
+
+        // 1. Trải thảm cỏ TRÀN VIỀN
         g2d.setPaint(grassTexture);
-        g2d.fillRect(0, 0, width, height);
+        g2d.fillRect(-EX, -EX, width + EX*2, height + EX*2);
+
         int curb = 6;
 
+        // 2. Trải vỉa hè TRÀN VIỀN
         g2d.setPaint(curbTexture);
-        g2d.fillRect(0, roadStartY - curb, width, roadWidth + curb*2);
+        g2d.fillRect(-EX, roadStartY - curb, width + EX*2, roadWidth + curb*2); // Ngang
         for (Intersection inter : intersections) {
             if (inter.type.equals("3way")) {
-                g2d.fillRect(inter.x - curb, roadStartY, roadWidth + curb*2, height - roadStartY);
+                g2d.fillRect(inter.x - curb, roadStartY, roadWidth + curb*2, height - roadStartY + EX); // Dọc xuống
             } else if (inter.type.equals("4way") || inter.type.equals("5way")) {
-                g2d.fillRect(inter.x - curb, 0, roadWidth + curb*2, height);
+                g2d.fillRect(inter.x - curb, -EX, roadWidth + curb*2, height + EX*2); // Dọc Full
             }
         }
 
@@ -210,7 +215,7 @@ public class Renderer {
         if (inter5 != null) {
             int cx5 = inter5.x + roadWidth/2;
             int cy5 = roadStartY + roadWidth/2;
-            int length = 1000;
+            int length = 3000; // Kéo dài tít mù tắp
             int endX = cx5 + length, endY = cy5 - length;
             double curbHw = (roadWidth/2.0) + curb;
             double dxc = curbHw * 0.707, dyc = curbHw * 0.707;
@@ -222,19 +227,20 @@ public class Renderer {
             g2d.fillPolygon(curbPoly);
         }
 
+        // 3. Trải mặt đường TRÀN VIỀN
         g2d.setPaint(roadTexture);
-        g2d.fillRect(0, roadStartY, width, roadWidth);
+        g2d.fillRect(-EX, roadStartY, width + EX*2, roadWidth);
         for (Intersection inter : intersections) {
             if (inter.type.equals("3way")) {
-                g2d.fillRect(inter.x, roadStartY, roadWidth, height - roadStartY);
+                g2d.fillRect(inter.x, roadStartY, roadWidth, height - roadStartY + EX);
             } else if (inter.type.equals("4way") || inter.type.equals("5way")) {
-                g2d.fillRect(inter.x, 0, roadWidth, height);
+                g2d.fillRect(inter.x, -EX, roadWidth, height + EX*2);
             }
         }
         if (inter5 != null) {
             int cx5 = inter5.x + roadWidth/2;
             int cy5 = roadStartY + roadWidth/2;
-            int length = 1000;
+            int length = 3000;
             int endX = cx5 + length, endY = cy5 - length;
             double roadHw = roadWidth/2.0;
             double dxr = roadHw * 0.707, dyr = roadHw * 0.707;
@@ -246,6 +252,7 @@ public class Renderer {
             g2d.fillPolygon(roadPoly);
         }
 
+        // Bo góc
         for (Intersection inter : intersections) {
             drawFillet(g2d, inter.x, roadStartY + roadWidth, 3);
             drawFillet(g2d, inter.x + roadWidth, roadStartY + roadWidth, 4);
@@ -259,16 +266,15 @@ public class Renderer {
 
         // --- VẼ CÂY CỐI LÊN TRÊN CỎ ---
         for (Point p : treePositions) {
-            // Bóng râm dưới gốc cây
             g2d.setColor(new Color(0, 0, 0, 40));
             g2d.fillOval(p.x + 8, p.y + 54, 32, 12);
-            // Ảnh cây pixel
             g2d.drawImage(treeSprite, p.x, p.y, null);
         }
 
+        // 4. Vạch đứt phân làn TRÀN VIỀN
         g2d.setColor(new Color(240, 240, 240));
         int laneMidY = roadStartY + roadWidth/2;
-        int segStartX = 0;
+        int segStartX = -EX; // Bắt đầu từ tít ngoài rìa trái màn hình
         for (Intersection inter : intersections) {
             int segEndX = inter.x - 45;
             if (segEndX > segStartX) {
@@ -278,31 +284,32 @@ public class Renderer {
             }
             segStartX = inter.x + roadWidth + 45;
         }
-        if (segStartX < width) {
-            for (int x = segStartX; x < width; x += 40) {
+        if (segStartX < width + EX) { // Kéo dài tít mù tắp ra rìa phải
+            for (int x = segStartX; x < width + EX; x += 40) {
                 g2d.fillRect(x, laneMidY - 2, 20, 4);
             }
         }
         for (Intersection inter : intersections) {
             int laneMidX = inter.x + roadWidth/2;
             int startY = roadStartY + roadWidth + 45;
-            for (int y = startY; y < height; y += 40) {
-                if (y + 20 <= height) g2d.fillRect(laneMidX - 2, y, 4, 20);
+            for (int y = startY; y < height + EX; y += 40) { // Cắt xuống đáy
+                if (y + 20 <= height + EX) g2d.fillRect(laneMidX - 2, y, 4, 20);
             }
             if (inter.type.equals("4way") || inter.type.equals("5way")) {
                 int endY = roadStartY - 45;
-                for (int y = 0; y < endY; y += 40) {
+                for (int y = -EX; y < endY; y += 40) { // Cắt lên nóc
                     if (y + 20 <= endY) g2d.fillRect(laneMidX - 2, y, 4, 20);
                 }
             }
         }
 
+        // Vạch đứt ngã 5 chéo
         if (inter5 != null) {
             g2d.setStroke(new BasicStroke(4));
             int cx5 = inter5.x + roadWidth/2;
             int cy5 = roadStartY + roadWidth/2;
             double currentDist = roadWidth/2.0 + 45;
-            double maxDist = 1000;
+            double maxDist = 3000; // Tràn viền
             while (currentDist < maxDist) {
                 int dashStartX = (int)(cx5 + currentDist * 0.707);
                 int dashStartY = (int)(cy5 - currentDist * 0.707);
@@ -314,6 +321,7 @@ public class Renderer {
             g2d.setStroke(new BasicStroke(1));
         }
 
+        // Vạch đi bộ (Zebra crossing) giữ nguyên vị trí gốc
         for (Intersection inter : intersections) {
             for (int off = 10; off < roadWidth - 10; off += 25) {
                 g2d.fillRect(inter.x + off, roadStartY + roadWidth + 10, 14, 30);

@@ -35,7 +35,7 @@ public class Main extends JPanel implements ActionListener {
     public Main() {
         // Mặc định ban đầu, vẫn ưu tiên kích thước chuẩn
         setPreferredSize(new Dimension(BASE_WIDTH, BASE_HEIGHT));
-        setBackground(Color.BLACK); // Đặt nền đen để tạo khoảng viền (Letterbox)
+        setBackground(new Color(85, 170, 85)); // Màu cỏ chuẩn của bạn
         setLayout(null);
 
         vehicles = new ArrayList<>();

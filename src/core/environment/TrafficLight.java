@@ -2,10 +2,6 @@ package core.environment;
 
 import core.constants.Direction;
 import java.awt.*;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import javax.imageio.ImageIO;
 
 public class TrafficLight {
     private boolean isFiveWay;
@@ -15,12 +11,6 @@ public class TrafficLight {
     private int tick;
     private boolean manualMode;
 
-    // --- BIẾN MỚI CHO ẢNH ĐÈN PIXEL ---
-    private static BufferedImage redSprite;
-    private static BufferedImage yellowSprite;
-    private static BufferedImage greenSprite;
-    private static boolean spritesLoaded = false;
-
     public TrafficLight(boolean isFiveWay) {
         this.isFiveWay = isFiveWay;
         this.phase = "HORIZONTAL";
@@ -28,30 +18,6 @@ public class TrafficLight {
         this.countdown = 4;
         this.tick = 0;
         this.manualMode = false;
-
-        // Load ảnh 1 lần duy nhất cho tất cả các đèn
-        if (!spritesLoaded) {
-            loadSprites();
-        }
-    }
-
-    // --- HÀM MỚI: LOAD VÀ CẮT ẢNH TỰ ĐỘNG ---
-    private void loadSprites() {
-        try {
-            BufferedImage sheet = ImageIO.read(new File("assets/traffic_light_sprites.png"));
-            // Tự động cắt làm 3 khung hình bằng nhau
-            int frameWidth = sheet.getWidth() / 3;
-            int frameHeight = sheet.getHeight();
-
-            redSprite = sheet.getSubimage(0, 0, frameWidth, frameHeight);
-            yellowSprite = sheet.getSubimage(frameWidth, 0, frameWidth, frameHeight);
-            greenSprite = sheet.getSubimage(frameWidth * 2, 0, frameWidth, frameHeight);
-
-            spritesLoaded = true;
-        } catch (IOException e) {
-            System.err.println("Không tìm thấy ảnh assets/traffic_light_sprites.png! Sẽ dùng đèn vẽ tay cũ.");
-            spritesLoaded = false;
-        }
     }
 
     public void update() {
@@ -143,69 +109,73 @@ public class TrafficLight {
         return -1;
     }
 
+    // =========================================================
+    // VẼ CỘT ĐÈN PROCEDURAL PIXEL ART (Không cần load ảnh)
+    // =========================================================
     public void drawPole(Graphics2D g2d, int x, int y, Direction dir) {
-        int width = 45, height = 90;
-
         boolean isGreen = canGo(dir);
         boolean isYellow = isYellowFor(dir);
         boolean isRed = !isGreen && !isYellow;
 
-        // --- MỚI: VẼ ĐÈN BẰNG ẢNH PIXEL ---
-        if (spritesLoaded) {
-            BufferedImage spriteToDraw = redSprite; // Mặc định là đỏ
-            if (isGreen) spriteToDraw = greenSprite;
-            else if (isYellow) spriteToDraw = yellowSprite;
+        // --- 1. VẼ CỘT SẮT (POLE) CHÌM NỔI ---
+        g2d.setColor(new Color(105, 110, 115)); // Xám kim loại
+        g2d.fillRect(x + 6, y + 42, 6, 24);
+        g2d.setColor(new Color(75, 80, 85));    // Đổ bóng tạo khối
+        g2d.fillRect(x + 10, y + 42, 2, 24);
 
-            g2d.drawImage(spriteToDraw, x, y, width, height, null);
-        } else {
-            // BACKUP: Vẽ kiểu cũ nếu không load được ảnh
-            g2d.setColor(new Color(50, 50, 50));
-            g2d.fillRoundRect(x, y, width, height, 8, 8);
-            g2d.setColor(Color.BLACK);
-            g2d.drawRoundRect(x, y, width, height, 8, 8);
+        // --- 2. VẼ HỘP ĐÈN (BOX) ---
+        g2d.setColor(new Color(35, 40, 45));    // Nhựa nhám đen
+        g2d.fillRect(x, y, 18, 42);
+        g2d.setColor(new Color(70, 75, 80));    // Viền nổi
+        g2d.drawRect(x, y, 17, 41);
 
-            int ballD = 20;
-            int ballX = x + (width - ballD)/2;
-            int redY = y + 10, yellowY = y + 30, greenY = y + 50;
+        // --- 3. BẢNG MÀU PIXEL NEON ---
+        Color offRed = new Color(60, 15, 15);
+        Color offYellow = new Color(60, 60, 15);
+        Color offGreen = new Color(15, 60, 15);
 
-            g2d.setColor(isRed ? Color.RED : new Color(80,80,80));
-            g2d.fillOval(ballX, redY, ballD, ballD);
-            g2d.setColor(isYellow ? Color.YELLOW : new Color(80,80,80));
-            g2d.fillOval(ballX, yellowY, ballD, ballD);
-            g2d.setColor(isGreen ? Color.GREEN : new Color(80,80,80));
-            g2d.fillOval(ballX, greenY, ballD, ballD);
-        }
+        Color onRed = new Color(255, 50, 50);
+        Color onYellow = new Color(255, 230, 0);
+        Color onGreen = new Color(50, 255, 50);
 
-        // --- CODE VẼ ĐỒNG HỒ ĐẾM NGƯỢC ---
-        Font font = new Font("Arial", Font.BOLD, 16);
-        g2d.setFont(font);
+        // --- 4. VẼ BÓNG ĐÈN ---
+        g2d.setColor(isRed ? onRed : offRed);
+        g2d.fillOval(x + 4, y + 4, 10, 10);
+
+        g2d.setColor(isYellow ? onYellow : offYellow);
+        g2d.fillOval(x + 4, y + 16, 10, 10);
+
+        g2d.setColor(isGreen ? onGreen : offGreen);
+        g2d.fillOval(x + 4, y + 28, 10, 10);
+
+        // --- 5. VẼ SỐ ĐẾM NGƯỢC (PIXEL FONT) ---
         String displayNumber;
         Color textColor;
+
         if (isRed) {
             displayNumber = String.valueOf(getRemainingRedTime(dir));
-            textColor = Color.RED;
+            textColor = onRed;
         } else if (isYellow) {
             displayNumber = String.valueOf(countdown);
-            textColor = Color.YELLOW;
+            textColor = onYellow;
         } else {
             displayNumber = String.valueOf(countdown);
-            textColor = Color.GREEN;
+            textColor = onGreen;
         }
 
+        // Font Monospaced kết hợp với lệnh tắt Anti-aliasing ở Main sẽ cho ra chữ pixel vuông sắc
+        g2d.setFont(new Font("Monospaced", Font.BOLD, 14));
         FontMetrics fm = g2d.getFontMetrics();
-        int sw = fm.stringWidth(displayNumber);
 
-        // Căn giữa số đếm ngược
-        int textX = x + width/2 - sw/2;
+        // Căn giữa mặt hộp, nhảy lên ngay trên đỉnh hộp đèn
+        int textX = x + (18 - fm.stringWidth(displayNumber)) / 2;
+        int textY = y - 4;
 
-        // ĐÃ HẠ TỌA ĐỘ Y XUỐNG SÁT NẮP ĐÈN
-        // Nếu bạn muốn nó lún sâu xuống nữa thì tăng số 8 lên (ví dụ + 10, + 12)
-        // Nếu nó lẹm vào nắp đèn quá thì giảm xuống (ví dụ + 5, + 3)
-        int textY = y + 8;
-
-        g2d.setColor(Color.BLACK); // Đổ bóng viền chữ
+        // Vẽ lớp bóng đen ở dưới để số nổi bật, dễ đọc
+        g2d.setColor(Color.BLACK);
         g2d.drawString(displayNumber, textX + 1, textY + 1);
 
+        // Vẽ lớp màu dạ quang đè lên trên
         g2d.setColor(textColor);
         g2d.drawString(displayNumber, textX, textY);
     }
